@@ -6,6 +6,8 @@ This repository illustrates the use of a few DRL algorithms on a simple [cart po
 - Advantage Actor-Critic (A2C) - written both in Python with TensorFlow and in [PyTorch-powered](https://github.com/LaurentMazare/tch-rs) Rust
 - Asynchronous Advantage Actor-Critic (A3C) - made in Rust and PyTorch
 
+_The project is more of a "Proof of concept" kind of software. Several learning optimizations could be added, tests don't exist, the code quality is rather average and bugs may appear._
+
 ## Prerequisites
 
 - Python scripts:
