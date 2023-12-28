@@ -1,0 +1,9 @@
+dm_reverb==0.13.0
+imageio==2.4.0
+ipython==8.18.1
+keras==2.15.0
+matplotlib==3.8.2
+numpy==1.24.4
+pygame==2.5.2
+tensorflow==2.15.0
+tf_agents==0.18.0

@@ -1,0 +1,24 @@
+[package]
+name = "benchmarks"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+utils.workspace = true
+tch.workspace = true
+criterion = "0.5.1"
+
+[[bench]]
+name = "a2c"
+path = "a2c.rs"
+harness = false
+
+[[bench]]
+name = "a3c"
+path = "a3c.rs"
+harness = false
+
+[lints]
+workspace = true

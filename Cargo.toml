@@ -1,0 +1,20 @@
+[workspace]
+resolver = "2"
+members = ["rust/bins", "rust/utils", "rust/benchmarks"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.74"
+
+[workspace.dependencies]
+utils.path = "rust/utils"
+tch = { version = "0.14.0", features = ["download-libtorch"] }
+
+[workspace.lints.clippy]
+pedantic = "warn"
+clone_on_ref_ptr = "warn"
+cast_lossless = "allow"
+cast_possible_truncation = "allow"
+cast_possible_wrap = "allow"
+missing_panics_doc = "allow"

@@ -1,0 +1,21 @@
+[package]
+name = "bins"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[[bin]]
+name = "a2c"
+path = "a2c.rs"
+
+[[bin]]
+name = "a3c"
+path = "a3c.rs"
+
+[dependencies]
+utils.workspace = true
+tch.workspace = true
+
+[lints]
+workspace = true

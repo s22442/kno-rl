@@ -1,0 +1,23 @@
+[package]
+name = "utils"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+tch.workspace = true
+crossbeam = "0.8.3"
+derive-getters = "0.3.0"
+derive_setters = "0.1.6"
+ndarray = "0.15.6"
+rand = "0.8.5"
+
+[build-dependencies]
+glob = "0.3.1"
+
+[lints]
+workspace = true
