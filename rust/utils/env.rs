@@ -1,22 +1,22 @@
 use tch::Tensor;
 
-pub trait Instance: Clone + Send + 'static {
+pub trait Env: Clone + Send + 'static {
     fn observation_space() -> usize;
     fn action_space() -> usize;
     fn observation(&self) -> Tensor;
     fn episode_ended(&self) -> bool;
     fn reset(&mut self);
-    fn step(&mut self, action: usize) -> f32;
+    fn step(&mut self, action: u32) -> f64;
 }
 
 mod my_very_own_stick {
-    pub use super::Instance as InstanceTrait;
+    pub use super::Env as EnvTrait;
     use rand::Rng;
-    use std::f32::consts::PI;
+    use std::f64::consts::PI;
     use tch::Tensor;
 
     #[derive(Clone, Debug)]
-    struct State(f32, f32, f32, f32);
+    struct State(f64, f64, f64, f64);
 
     impl Default for State {
         fn default() -> Self {
@@ -31,26 +31,26 @@ mod my_very_own_stick {
     }
 
     #[derive(Clone, Debug)]
-    pub struct Instance {
+    pub struct Env {
         current_step: u16,
         episode_ended: bool,
         state: State,
     }
 
     const MAX_STEPS: u16 = 500;
-    const REWARD_PER_STEP: f32 = 1.0;
-    const GRAVITY: f32 = 9.8;
-    const CART_MASS: f32 = 1.0;
-    const POLE_MASS: f32 = 0.1;
-    const TOTAL_MASS: f32 = CART_MASS + POLE_MASS;
-    const POLE_LENGTH: f32 = 0.5;
-    const POLE_MASS_LENGTH: f32 = POLE_MASS * POLE_LENGTH;
-    const FORCE_MAG: f32 = 10.0;
-    const TAU: f32 = 0.02;
-    const THETA_THRESHOLD_RADIANS: f32 = 12.0 * 2.0 * PI / 360.0;
-    const X_THRESHOLD: f32 = 2.4;
+    const REWARD_PER_STEP: f64 = 1.0;
+    const GRAVITY: f64 = 9.8;
+    const CART_MASS: f64 = 1.0;
+    const POLE_MASS: f64 = 0.1;
+    const TOTAL_MASS: f64 = CART_MASS + POLE_MASS;
+    const POLE_LENGTH: f64 = 0.5;
+    const POLE_MASS_LENGTH: f64 = POLE_MASS * POLE_LENGTH;
+    const FORCE_MAG: f64 = 10.0;
+    const TAU: f64 = 0.02;
+    const THETA_THRESHOLD_RADIANS: f64 = 12.0 * 2.0 * PI / 360.0;
+    const X_THRESHOLD: f64 = 2.4;
 
-    impl Instance {
+    impl Env {
         #[must_use]
         pub fn new() -> Self {
             Self {
@@ -61,7 +61,7 @@ mod my_very_own_stick {
         }
     }
 
-    impl InstanceTrait for Instance {
+    impl EnvTrait for Env {
         #[must_use]
         fn observation_space() -> usize {
             4
@@ -87,7 +87,7 @@ mod my_very_own_stick {
             self.episode_ended = false;
         }
 
-        fn step(&mut self, action: usize) -> f32 {
+        fn step(&mut self, action: u32) -> f64 {
             self.current_step += 1;
 
             if self.current_step >= MAX_STEPS {
@@ -125,10 +125,10 @@ mod my_very_own_stick {
         }
     }
 
-    impl Default for Instance {
+    impl Default for Env {
         fn default() -> Self {
             Self::new()
         }
     }
 }
-pub use my_very_own_stick::Instance as MyVeryOwnStick;
+pub use my_very_own_stick::Env as MyVeryOwnStick;

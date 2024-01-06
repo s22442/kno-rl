@@ -1,13 +1,13 @@
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion, PlottingBackend};
 use tch::{nn::VarStore, Device};
 
-const MAX_ITERATION_COUNT: usize = 100_000;
+const MAX_ITERATION_COUNT: usize = 500_000;
 const EVAL_INTERVAL: usize = 500;
 
-const TARGET_AVG_RETURN: f32 = 475.0;
+const TARGET_AVG_RETURN: f64 = 475.0;
 
 fn a2c_cpu(c: &mut Criterion) {
-    use utils::{a2c, env};
+    use utils::{a2c::A2C, env};
 
     c.bench_function("A2C/CPU", |b| {
         b.iter_batched(
@@ -16,12 +16,13 @@ fn a2c_cpu(c: &mut Criterion) {
 
                 let vs = VarStore::new(Device::Cpu);
 
-                a2c::Builder::init(&vs)
-                    .set_env(env)
-                    .set_fc_layers(&[100, 100])
-                    .set_gamma(0.99)
-                    .set_learning_rate(1e-3)
-                    .set_sync_interval(100)
+                A2C::builder()
+                    .vs(vs)
+                    .env(env)
+                    .fc_layers(&[100, 100])
+                    .gamma(0.99)
+                    .learning_rate(1e-3)
+                    .sync_interval(100)
                     .build()
             },
             |mut a2c| {
@@ -48,7 +49,7 @@ fn a2c_cpu(c: &mut Criterion) {
 criterion_group! {
     name = benches;
     config = Criterion::default()
-        .sample_size(20)
+        .sample_size(100)
         .plotting_backend(PlottingBackend::None);
     targets = a2c_cpu
 }

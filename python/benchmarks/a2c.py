@@ -4,8 +4,8 @@ import time
 from utils.a2c import A2C
 from utils.my_very_own_stick_env import MyVeryOnwStickEnv
 
-SAMPLE_SIZE = 10
-MAX_ITERATION_COUNT = 100_000
+SAMPLE_SIZE = 50
+MAX_ITERATION_COUNT = 500_000
 EVAL_INTERVAL = 500
 
 TARGET_AVG_RETURN = 475.0

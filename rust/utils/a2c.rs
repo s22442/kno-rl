@@ -1,17 +1,14 @@
 use derive_setters::Setters;
-use ndarray::Array1;
 
 use tch::{
     nn::{self, LinearConfig, Module, OptimizerConfig},
-    Kind::Float,
-    Reduction, Tensor,
+    Device, Kind, Reduction, Tensor,
 };
 
-use crate::env;
+use crate::env::Env as EnvTrait;
 
 #[derive(Debug)]
 pub struct ActorCriticModel {
-    action_space: i64,
     seq: nn::Sequential,
     actor: nn::Linear,
     critic: nn::Linear,
@@ -23,6 +20,38 @@ impl Module for ActorCriticModel {
         let actor = x.apply(&self.actor);
         let critic = x.apply(&self.critic);
         Tensor::cat(&[actor, critic], 0)
+    }
+}
+
+#[must_use]
+#[derive(Debug)]
+pub struct ActorCriticTensor(Tensor);
+
+impl ActorCriticTensor {
+    fn action_space(&self) -> i64 {
+        self.0.size1().unwrap() - 1
+    }
+
+    fn action_probs(&self) -> Tensor {
+        self.0
+            .narrow(0, 0, self.action_space())
+            .softmax(-1, Kind::Double)
+    }
+
+    fn action(&self, explore: bool) -> u32 {
+        let probs = self.action_probs();
+
+        if explore {
+            let action_t = probs.multinomial(1, true);
+            action_t.int64_value(&[0]) as u32
+        } else {
+            let action_t = probs.argmax(-1, false);
+            action_t.int64_value(&[]) as u32
+        }
+    }
+
+    fn value(&self) -> f64 {
+        self.0.narrow(0, self.action_space(), 1).double_value(&[0])
     }
 }
 
@@ -62,38 +91,34 @@ impl ActorCriticModel {
         let last_layer_node_count = *fc_layers.last().unwrap() as i64;
 
         let actor = nn::linear(
-            vs_path / "a1",
+            vs_path / "al",
             last_layer_node_count,
             action_space,
             LinearConfig::default(),
         );
         let critic = nn::linear(
-            vs_path / "c1",
+            vs_path / "cl",
             last_layer_node_count,
             1,
             LinearConfig::default(),
         );
 
-        ActorCriticModel {
-            action_space,
-            seq,
-            actor,
-            critic,
-        }
+        ActorCriticModel { seq, actor, critic }
     }
 
-    #[must_use]
-    pub fn chose_action(&self, observation: &Tensor) -> usize {
+    pub fn forward_actor_critic(&self, observation: &Tensor) -> ActorCriticTensor {
         let out = self.forward(observation);
-        let probs = out.narrow(0, 0, self.action_space).softmax(-1, Float);
-        let action = probs.argmax(-1, false);
-        action.int64_value(&[]).try_into().unwrap()
+        ActorCriticTensor(out)
     }
 
     #[must_use]
-    pub fn evaluate_avg_return<Env>(&self, env: &mut Env) -> f32
+    pub fn act(&self, observation: &Tensor) -> u32 {
+        tch::no_grad(|| self.forward_actor_critic(observation).action(false))
+    }
+
+    pub fn evaluate_avg_return<Env>(&self, env: &mut Env) -> f64
     where
-        Env: env::Instance,
+        Env: EnvTrait,
     {
         const EVAL_EPISODE_COUNT: u8 = 20;
 
@@ -103,108 +128,129 @@ impl ActorCriticModel {
 
             while !env.episode_ended() {
                 let observation = env.observation();
-                let action = self.chose_action(&observation);
+                let action = self.act(&observation);
                 let reward = env.step(action);
                 total_return += reward;
             }
         }
 
-        total_return / EVAL_EPISODE_COUNT as f32
+        total_return / EVAL_EPISODE_COUNT as f64
     }
 
-    pub fn explore<Env>(&self, env: &mut Env) -> (Tensor, usize, f32)
-    where
-        Env: env::Instance,
-    {
-        let observation = env.observation();
-        let out = self.forward(&observation);
-        let action_probs = out.narrow(0, 0, self.action_space).softmax(-1, Float);
-        let action = action_probs
-            .multinomial(1, true)
-            .int64_value(&[0])
-            .try_into()
-            .unwrap();
-        let reward = env.step(action);
-
-        (out, action, reward)
+    pub fn explore(&self, observation: &Tensor) -> (ActorCriticTensor, u32) {
+        let out = self.forward_actor_critic(observation);
+        let action = out.action(true);
+        (out, action)
     }
 
     #[must_use]
-    pub fn criticize(&self, observation: &Tensor) -> f32 {
-        let out = self.forward(observation);
-        out.narrow(0, self.action_space, 1).double_value(&[0]) as f32
+    pub fn criticize(&self, observation: &Tensor) -> f64 {
+        tch::no_grad(|| self.forward_actor_critic(observation).value())
+    }
+}
+
+#[derive(Debug)]
+struct ActorCriticTensorStack {
+    vec: Vec<Tensor>,
+    action_space: i64,
+}
+
+impl ActorCriticTensorStack {
+    fn new(action_space: usize) -> Self {
+        Self {
+            vec: Vec::new(),
+            action_space: action_space as i64,
+        }
+    }
+
+    fn push(&mut self, tensor: ActorCriticTensor) {
+        self.vec.push(tensor.0);
+    }
+
+    fn stack_actor_critic(&self) -> (Tensor, Tensor) {
+        let stacked_outputs = Tensor::stack(&self.vec, 0);
+
+        let actions_probs = stacked_outputs
+            .narrow(1, 0, self.action_space)
+            .softmax(-1, Kind::Double);
+        let values = stacked_outputs
+            .narrow(1, self.action_space, 1)
+            .squeeze_dim(1);
+
+        (actions_probs, values)
+    }
+
+    fn clear(&mut self) {
+        self.vec.clear();
     }
 }
 
 #[derive(Debug)]
 pub struct Memory {
-    action_space: i64,
-    gamma: f32,
-    outputs: Vec<Tensor>,
+    device: Device,
+    gamma: f64,
+    output_stack: ActorCriticTensorStack,
     actions: Vec<i64>,
-    rewards: Vec<f32>,
+    rewards: Vec<f64>,
 }
 
 impl Memory {
     #[must_use]
-    pub fn new(action_space: i64, gamma: f32) -> Memory {
+    pub fn new(device: Device, action_space: usize, gamma: f64) -> Memory {
         Memory {
-            action_space,
+            device,
             gamma,
-            outputs: Vec::new(),
+            output_stack: ActorCriticTensorStack::new(action_space),
             actions: Vec::new(),
             rewards: Vec::new(),
         }
     }
 
-    pub fn push(&mut self, out: Tensor, action: usize, reward: f32) {
-        self.outputs.push(out);
+    pub fn push(&mut self, out: ActorCriticTensor, action: u32, reward: f64) {
+        self.output_stack.push(out);
         self.actions.push(action as i64);
         self.rewards.push(reward);
     }
 
     pub fn clear(&mut self) {
-        self.outputs.clear();
+        self.output_stack.clear();
         self.actions.clear();
         self.rewards.clear();
     }
 
-    fn compute_expected_returns(&self, remaining_episode_reward: f32) -> Vec<f32> {
-        let outputs_len = self.outputs.len();
-        let mut returns = Array1::<f32>::zeros(outputs_len);
+    fn compute_expected_returns(&self, remaining_episode_reward: f64) -> Tensor {
+        let memory_size = self.rewards.len();
+        let mut returns = Tensor::zeros([memory_size as i64], (Kind::Double, self.device));
 
         let mut discounted_sum = remaining_episode_reward;
-        for i in (0..outputs_len).rev() {
+        for i in (0..memory_size).rev() {
             let reward = self.rewards[i];
             discounted_sum = reward + self.gamma * discounted_sum;
-            returns[i] = discounted_sum;
+            _ = returns.get(i as i64).fill_(discounted_sum);
         }
 
-        let mean = returns.mean().unwrap();
-        let std_dev = returns.std(0.);
+        let mean = returns.mean(Kind::Double);
+        let std_dev = returns.std(false);
 
-        returns = (returns - mean) / (std_dev + f32::EPSILON);
+        returns = (returns - mean) / (std_dev + f64::EPSILON);
 
-        returns.to_vec()
+        returns
     }
 
-    pub fn compute_loss(&self, remaining_episode_reward: f32) -> Tensor {
-        let returns = self.compute_expected_returns(remaining_episode_reward);
-        let returns = Tensor::from_slice(&returns);
-
-        let outputs = Tensor::stack(&self.outputs, 0);
+    pub fn compute_loss(&self, remaining_episode_reward: f64) -> Tensor {
         let actions = Tensor::from_slice(&self.actions);
+        let (actions_probs, values) = self.output_stack.stack_actor_critic();
 
-        let all_action_probs = outputs.narrow(1, 0, self.action_space).softmax(-1, Float);
-        let action_probs = all_action_probs
+        let returns = self.compute_expected_returns(remaining_episode_reward);
+
+        let taken_action_probs = actions_probs
             .gather(1, &actions.unsqueeze(-1), false)
             .squeeze_dim(1);
-        let values = outputs.narrow(1, self.action_space, 1).squeeze_dim(1);
 
         let advantage = &returns - &values;
 
-        let action_log_probs = action_probs.log();
-        let actor_loss = -action_log_probs.dot(&advantage);
+        let taken_action_log_probs = taken_action_probs.log();
+        let actor_loss = -taken_action_log_probs.dot(&advantage);
         let critic_loss = values.huber_loss(&returns, Reduction::Sum, 1.0);
 
         actor_loss + critic_loss
@@ -214,7 +260,7 @@ impl Memory {
 #[must_use]
 pub struct A2C<Env>
 where
-    Env: env::Instance,
+    Env: EnvTrait,
 {
     model: ActorCriticModel,
     memory: Memory,
@@ -226,14 +272,16 @@ where
 
 impl<Env> A2C<Env>
 where
-    Env: env::Instance,
+    Env: EnvTrait,
 {
-    pub fn train(&mut self, iteration_count: usize) {
+    pub fn train(&mut self, min_iteration_count: usize) {
         let mut steps_done = 0;
 
-        while steps_done < iteration_count {
-            while !self.train_env.episode_ended() && steps_done < iteration_count {
-                let (out, action, reward) = self.model.explore(&mut self.train_env);
+        while steps_done < min_iteration_count {
+            while !self.train_env.episode_ended() {
+                let (out, action) = self.model.explore(&self.train_env.observation());
+
+                let reward = self.train_env.step(action);
                 self.memory.push(out, action, reward);
 
                 steps_done += 1;
@@ -263,21 +311,31 @@ where
         }
     }
 
-    pub fn evaluate_avg_return(&mut self) -> f32 {
+    pub fn evaluate_avg_return(&mut self) -> f64 {
         self.model.evaluate_avg_return(&mut self.eval_env)
+    }
+
+    pub fn builder<'a>() -> Builder<'a, Env> {
+        Builder {
+            vs: None,
+            gamma: None,
+            learning_rate: None,
+            sync_interval: None,
+            fc_layers: None,
+            env: None,
+        }
     }
 }
 
 #[must_use]
 #[derive(Setters, Debug)]
-#[setters(strip_option, prefix = "set_")]
+#[setters(strip_option)]
 pub struct Builder<'a, Env>
 where
-    Env: env::Instance,
+    Env: EnvTrait,
 {
-    #[setters(skip)]
-    vs: &'a nn::VarStore,
-    gamma: Option<f32>,
+    vs: Option<nn::VarStore>,
+    gamma: Option<f64>,
     learning_rate: Option<f64>,
     sync_interval: Option<usize>,
     fc_layers: Option<&'a [usize]>,
@@ -286,20 +344,11 @@ where
 
 impl<'a, Env> Builder<'a, Env>
 where
-    Env: env::Instance,
+    Env: EnvTrait,
 {
-    pub fn init(vs: &'a nn::VarStore) -> Builder<'a, Env> {
-        Self {
-            vs,
-            gamma: None,
-            learning_rate: None,
-            fc_layers: None,
-            env: None,
-            sync_interval: None,
-        }
-    }
-
     pub fn build(self) -> A2C<Env> {
+        let mut vs = self.vs.unwrap();
+
         let gamma = self.gamma.unwrap();
         let learning_rate = self.learning_rate.unwrap();
         let sync_interval = self.sync_interval.unwrap();
@@ -309,10 +358,11 @@ where
         let mut env = self.env.unwrap();
         env.reset();
 
-        let model =
-            ActorCriticModel::new(&self.vs.root(), observation_space, action_space, fc_layers);
-        let memory = Memory::new(action_space as i64, gamma);
-        let optimizer = nn::Adam::default().build(self.vs, learning_rate).unwrap();
+        let model = ActorCriticModel::new(&vs.root(), observation_space, action_space, fc_layers);
+        let memory = Memory::new(vs.device(), action_space, gamma);
+        let optimizer = nn::Adam::default().build(&vs, learning_rate).unwrap();
+
+        vs.double();
 
         A2C {
             model,

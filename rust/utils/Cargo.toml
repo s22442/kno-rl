@@ -11,9 +11,8 @@ path = "lib.rs"
 [dependencies]
 tch.workspace = true
 crossbeam = "0.8.3"
-derive-getters = "0.3.0"
 derive_setters = "0.1.6"
-ndarray = "0.15.6"
+parking_lot = "0.12.1"
 rand = "0.8.5"
 
 [build-dependencies]

@@ -4,7 +4,7 @@ import time
 from utils.dqn import Dqn
 from utils.my_very_own_stick_env import MyVeryOnwStickEnv
 
-SAMPLE_SIZE = 10
+SAMPLE_SIZE = 20
 MAX_ITERATION_COUNT = 100_000
 EVAL_INTERVAL = 250
 

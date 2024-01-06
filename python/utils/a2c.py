@@ -178,11 +178,11 @@ class A2C():
         self.eval_env = copy.deepcopy(env)
         self.memory = ActorCriticMemory(gamma)
 
-    def _advance_episode(self, max_steps: int) -> TimeStep:
+    def _advance_episode(self) -> TimeStep:
         time_step = self.env.current_time_step()
         num_steps_done = 0
 
-        for _ in range(np.min([self.sync_interval, max_steps])):
+        for _ in range(self.sync_interval):
             state = np.expand_dims(time_step.observation, axis=0)
 
             logits, value = self.agent.model(state)
@@ -211,14 +211,12 @@ class A2C():
 
         return num_steps_done
 
-    def train(self, num_iterations: int):
-        remaining_steps = num_iterations
+    def train(self, min_num_iterations: int):
+        remaining_steps = min_num_iterations
 
         while remaining_steps > 0:
             with tf.GradientTape() as tape:
-                num_steps = self._advance_episode(
-                    remaining_steps
-                )
+                num_steps = self._advance_episode()
                 time_step = self.env.current_time_step()
                 if time_step.is_last():
                     remaining_episode_reward = 0.0
