@@ -1,43 +1,50 @@
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion, PlottingBackend};
 use tch::{nn::VarStore, Device};
 
-const MAX_ITERATION_COUNT: usize = 500_000;
-const EVAL_INTERVAL: usize = 500;
+const MAX_NUM_EPOCHS: usize = 100;
+const EVAL_INTERVAL: usize = 2;
 
 const TARGET_AVG_RETURN: f64 = 475.0;
 
 fn a3c_cpu(c: &mut Criterion) {
-    use utils::{a3c::A3C, env};
+    use utils::{env, ppo::PPO};
 
-    c.bench_function("A3C/CPU", |b| {
+    c.bench_function("PPO/CPU", |b| {
         b.iter_batched(
             || {
                 let env = env::MyVeryOwnStick::new();
+                let device = Device::Cpu;
 
-                let vs = VarStore::new(Device::Cpu);
-
-                A3C::builder()
-                    .vs(vs)
+                PPO::builder()
+                    .actor_vs(VarStore::new(device))
+                    .critic_vs(VarStore::new(device))
                     .env(env)
                     .fc_layers(&[100, 100])
                     .gamma(0.99)
-                    .learning_rate(1e-3)
-                    .sync_interval(100)
+                    .lmbda(0.95)
+                    .clip_epsilon(0.2)
+                    .kl_epsilon(5e-3)
+                    .actor_learning_rate(3e-4)
+                    .critic_learning_rate(1e-3)
+                    .num_steps_per_epoch(10_000)
+                    .batch_size(500)
+                    .actor_train_num_batches(50)
+                    .critic_train_num_batches(50)
                     .num_threads(8)
                     .build()
             },
-            |mut a3c| {
-                for i in 0..(MAX_ITERATION_COUNT / EVAL_INTERVAL) {
-                    a3c.train(EVAL_INTERVAL);
+            |mut ppo| {
+                for i in 0..(MAX_NUM_EPOCHS / EVAL_INTERVAL) {
+                    ppo.train(EVAL_INTERVAL);
 
-                    let avg_return = a3c.evaluate_avg_return();
+                    let avg_return = ppo.evaluate_avg_return();
 
                     if avg_return >= TARGET_AVG_RETURN {
                         break;
                     }
 
                     assert!(
-                        (i + 1) * EVAL_INTERVAL != MAX_ITERATION_COUNT,
+                        (i + 1) * EVAL_INTERVAL != MAX_NUM_EPOCHS,
                         "Failed to reach target average return"
                     );
                 }

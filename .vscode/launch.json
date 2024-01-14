@@ -7,10 +7,7 @@
       "name": "Debug A2C",
       "cargo": {
         "args": ["build", "--bin=a2c"],
-        "filter": {
-          "name": "a2c",
-          "kind": "bin"
-        }
+        "filter": { "name": "a2c", "kind": "bin" }
       },
       "args": [],
       "cwd": "${workspaceFolder}",
@@ -22,10 +19,19 @@
       "name": "Debug A3C",
       "cargo": {
         "args": ["build", "--bin=a3c"],
-        "filter": {
-          "name": "a3c",
-          "kind": "bin"
-        }
+        "filter": { "name": "a3c", "kind": "bin" }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/target/debug/.env"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug PPO",
+      "cargo": {
+        "args": ["build", "--bin=ppo"],
+        "filter": { "name": "ppo", "kind": "bin" }
       },
       "args": [],
       "cwd": "${workspaceFolder}",

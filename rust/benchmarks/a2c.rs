@@ -49,7 +49,7 @@ fn a2c_cpu(c: &mut Criterion) {
 criterion_group! {
     name = benches;
     config = Criterion::default()
-        .sample_size(100)
+        .sample_size(200)
         .plotting_backend(PlottingBackend::None);
     targets = a2c_cpu
 }

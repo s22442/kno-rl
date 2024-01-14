@@ -12,10 +12,11 @@ utils.path = "rust/utils"
 tch = { version = "0.14.0", features = ["download-libtorch"] }
 
 [workspace.lints.clippy]
-pedantic = "warn"
+pedantic = { level = "warn", priority = -1 }
 clone_on_ref_ptr = "warn"
 cast_lossless = "allow"
 cast_possible_truncation = "allow"
 cast_possible_wrap = "allow"
 cast_sign_loss = "allow"
 missing_panics_doc = "allow"
+similar_names = "allow"

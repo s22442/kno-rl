@@ -20,5 +20,10 @@ name = "a3c"
 path = "a3c.rs"
 harness = false
 
+[[bench]]
+name = "ppo"
+path = "ppo.rs"
+harness = false
+
 [lints]
 workspace = true

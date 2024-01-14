@@ -238,7 +238,7 @@ where
 
         let mut thread_handles = Vec::new();
 
-        let (broadcaster, broadcast_rx) = channel::unbounded::<Broadcast>();
+        let (broadcaster, broadcast_rx) = channel::unbounded();
 
         let training_barrier = Arc::new(Barrier::new(num_threads + 1));
 

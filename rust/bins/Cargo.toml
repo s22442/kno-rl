@@ -13,6 +13,10 @@ path = "a2c.rs"
 name = "a3c"
 path = "a3c.rs"
 
+[[bin]]
+name = "ppo"
+path = "ppo.rs"
+
 [dependencies]
 utils.workspace = true
 tch.workspace = true
