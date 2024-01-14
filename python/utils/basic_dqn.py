@@ -116,7 +116,7 @@ class BasicDqn(object):
         return avg_return.numpy()[0]
 
     def train(self, num_iterations: int):
-        for _ in range(num_iterations):
+        for _ in range(num_iterations // self.collect_steps_per_iteration):
             for _ in range(self.collect_steps_per_iteration):
                 time_step = self.train_env.current_time_step()
                 action = self.predict_action(time_step.observation)

@@ -7,13 +7,13 @@ dqn = Dqn(
     env=MyVeryOnwStickEnv(),
     initial_collect_steps=200,
     collect_steps_per_iteration=10,
-    replay_buffer_max_length=100000,
+    replay_buffer_max_length=100_000,
     batch_size=200,
     learning_rate=1e-3,
     fc_layer_params=(100, 100)
 )
 
-NUM_ITERATIONS = 3000
+NUM_ITERATIONS = 10_000
 EVAL_INTERVAL = 500
 
 avg_returns = [dqn.evaluate_avg_return()]

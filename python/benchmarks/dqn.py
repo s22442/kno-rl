@@ -5,8 +5,8 @@ from utils.dqn import Dqn
 from utils.my_very_own_stick_env import MyVeryOnwStickEnv
 
 SAMPLE_SIZE = 20
-MAX_ITERATION_COUNT = 100_000
-EVAL_INTERVAL = 250
+MAX_ITERATION_COUNT = 500_000
+EVAL_INTERVAL = 500
 
 TARGET_AVG_RETURN = 475.0
 
@@ -17,7 +17,7 @@ for _ in range(SAMPLE_SIZE):
         env=MyVeryOnwStickEnv(),
         initial_collect_steps=200,
         collect_steps_per_iteration=10,
-        replay_buffer_max_length=100000,
+        replay_buffer_max_length=100_000,
         batch_size=200,
         learning_rate=1e-3,
         fc_layer_params=(100, 100)

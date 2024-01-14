@@ -50,6 +50,7 @@ class Dqn(object):
 
         self.initial_collect_steps = initial_collect_steps
         self.replay_buffer_max_length = replay_buffer_max_length
+        self.collect_steps_per_iteration = collect_steps_per_iteration
 
         action_tensor_spec = tensor_spec.from_spec(env.action_spec())
         num_actions = action_tensor_spec.maximum - action_tensor_spec.minimum + 1
@@ -152,19 +153,17 @@ class Dqn(object):
         total_return = 0.0
         for _ in range(AVG_RETURN_EVALUATION_NUM_EPISODES):
             time_step = self.eval_env.reset()
-            episode_return = 0.0
 
             while not time_step.is_last():
                 action_step = self.agent.policy.action(time_step)
                 time_step = self.eval_env.step(action_step.action)
-                episode_return += time_step.reward
-            total_return += episode_return
+                total_return += time_step.reward
 
         avg_return = total_return / AVG_RETURN_EVALUATION_NUM_EPISODES
         return avg_return.numpy()[0]
 
     def train(self, num_iterations: int):
-        for _ in range(num_iterations):
+        for _ in range(num_iterations // self.collect_steps_per_iteration):
             self.last_time_step, _ = self.collect_driver.run(
                 self.last_time_step
             )
