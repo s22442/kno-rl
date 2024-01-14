@@ -18,7 +18,8 @@ fn main() {
 
     let mut f = File::create(dest_path).unwrap();
 
-    let paths = glob::glob("../target/debug/build/torch-sys-*/out/libtorch/libtorch/lib").unwrap();
+    let paths =
+        glob::glob("../../target/debug/build/torch-sys-*/out/libtorch/libtorch/lib").unwrap();
 
     let mut ld_library_path = String::new();
 
