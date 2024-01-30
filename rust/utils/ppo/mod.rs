@@ -45,6 +45,7 @@ where
                 next_observations,
                 episodes_not_terminated,
                 actions,
+                action_probs,
                 action_log_probs,
                 rewards,
             } = self.collector.collect();
@@ -63,6 +64,7 @@ where
             self.sampler
                 .fill_observations(observations)
                 .fill_actions(actions)
+                .fill_action_probs(action_probs)
                 .fill_action_log_probs(action_log_probs)
                 .fill_advantages(advantages)
                 .fill_returns(returns);
@@ -70,6 +72,7 @@ where
             for _ in 0..self.actor_train_num_batches {
                 let ActorSample {
                     actions,
+                    action_probs,
                     action_log_probs,
                     observations,
                     advantages,
@@ -86,9 +89,12 @@ where
                 actor_loss.backward();
                 self.actor_optimizer.step();
 
-                let kl = self
-                    .clipped_loss
-                    .compute_kl(&actions, &action_log_probs, &observations);
+                let kl = self.clipped_loss.compute_kl(
+                    &actions,
+                    &action_probs,
+                    &action_log_probs,
+                    &observations,
+                );
 
                 if kl > self.kl_epsilon {
                     break;

@@ -16,6 +16,7 @@ pub struct Payload {
     pub next_observations: Tensor,
     pub episodes_not_terminated: Tensor,
     pub actions: Tensor,
+    pub action_probs: Tensor,
     pub action_log_probs: Tensor,
     pub rewards: Tensor,
 }
@@ -32,6 +33,7 @@ impl Payload {
             next_observations: Tensor::zeros([num_steps, observation_space], options),
             episodes_not_terminated: Tensor::zeros([num_steps], options),
             actions: Tensor::zeros([num_steps, 1], (Kind::Int64, device)),
+            action_probs: Tensor::zeros([num_steps], options),
             action_log_probs: Tensor::zeros([num_steps], options),
             rewards: Tensor::zeros([num_steps], options),
         }
@@ -107,11 +109,14 @@ where
                         let action_t = probs.multinomial(1, true);
                         payload.actions.get(i).copy_(&action_t);
 
-                        let action_log_prob = logits
-                            .log_softmax(0, Kind::Double)
+                        let action_prob = logits
+                            .softmax(0, Kind::Double)
                             .gather(0, &action_t, false)
                             .squeeze_dim(0);
 
+                        payload.action_probs.get(i).copy_(&action_prob);
+
+                        let action_log_prob = action_prob.log();
                         payload.action_log_probs.get(i).copy_(&action_log_prob);
 
                         let action = action_t.int64_value(&[0]).try_into().unwrap();
@@ -235,6 +240,7 @@ impl Collector {
         let mut next_observations = self.empty_tensor();
         let mut episodes_not_terminated = self.empty_tensor();
         let mut actions = Tensor::zeros([0], (Kind::Int64, self.device));
+        let mut action_probs = self.empty_tensor();
         let mut action_log_probs = self.empty_tensor();
         let mut rewards = self.empty_tensor();
 
@@ -248,6 +254,7 @@ impl Collector {
                 0,
             );
             actions = Tensor::cat(&[actions, payload.actions], 0);
+            action_probs = Tensor::cat(&[action_probs, payload.action_probs], 0);
             action_log_probs = Tensor::cat(&[action_log_probs, payload.action_log_probs], 0);
             rewards = Tensor::cat(&[rewards, payload.rewards], 0);
         }
@@ -257,6 +264,7 @@ impl Collector {
             next_observations,
             episodes_not_terminated,
             actions,
+            action_probs,
             action_log_probs,
             rewards,
         }

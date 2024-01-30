@@ -15,6 +15,7 @@ pub struct Sampler {
     device: Device,
 
     actions: Tensor,
+    action_probs: Tensor,
     action_log_probs: Tensor,
     observations: Tensor,
     advantages: Tensor,
@@ -23,6 +24,7 @@ pub struct Sampler {
 
 pub struct ActorSample {
     pub actions: Tensor,
+    pub action_probs: Tensor,
     pub action_log_probs: Tensor,
     pub observations: Tensor,
     pub advantages: Tensor,
@@ -44,6 +46,7 @@ impl Sampler {
             num_steps,
             batch_size,
             actions: Tensor::zeros([0], (Kind::Int64, device)),
+            action_probs: empty_tensor(),
             action_log_probs: empty_tensor(),
             observations: empty_tensor(),
             advantages: empty_tensor(),
@@ -64,12 +67,14 @@ impl Sampler {
         let sample_indexes = self.generate_sample_indexes();
 
         let actions = self.actions.index_select(0, &sample_indexes);
+        let action_probs = self.action_probs.index_select(0, &sample_indexes);
         let action_log_probs = self.action_log_probs.index_select(0, &sample_indexes);
         let observations = self.observations.index_select(0, &sample_indexes);
         let advantages = self.advantages.index_select(0, &sample_indexes);
 
         ActorSample {
             actions,
+            action_probs,
             action_log_probs,
             observations,
             advantages,

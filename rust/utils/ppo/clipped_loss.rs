@@ -53,6 +53,7 @@ impl ClippedLoss {
     pub fn compute_kl(
         &self,
         actions: &Tensor,
+        action_probs: &Tensor,
         action_log_probs: &Tensor,
         observations: &Tensor,
     ) -> f64 {
@@ -62,7 +63,7 @@ impl ClippedLoss {
             .gather(1, actions, false)
             .squeeze_dim(1);
 
-        let kl = (&new_action_log_probs - action_log_probs).mean(Kind::Double);
+        let kl = (action_probs * (action_log_probs - new_action_log_probs)).mean(Kind::Double);
 
         kl.double_value(&[])
     }
